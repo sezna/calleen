@@ -32,9 +32,10 @@ use std::time::Duration;
 ///     max_retries: 3,
 /// };
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum RetryStrategy {
     /// Do not retry failed requests.
+    #[default]
     None,
 
     /// Retry with exponentially increasing delays.
@@ -71,12 +72,6 @@ pub enum RetryStrategy {
         /// before that attempt, or `None` to stop retrying.
         delay_fn: fn(attempt: usize) -> Option<Duration>,
     },
-}
-
-impl Default for RetryStrategy {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl RetryStrategy {
