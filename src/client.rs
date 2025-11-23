@@ -210,7 +210,7 @@ impl Client {
 
                     // Check if we have more retries available
                     if let Some(delay) = delay {
-                        if !e.rate_limit_info().is_some() {
+                        if e.rate_limit_info().is_none() {
                             tracing::info!(
                                 delay_ms = delay.as_millis(),
                                 attempt = attempt,
@@ -341,8 +341,8 @@ impl Client {
 
             return Err(Error::HttpError {
                 status,
-                raw_response,
-                headers,
+                raw_response: raw_response.into_boxed_str(),
+                headers: Box::new(headers),
                 rate_limit_info,
             });
         }

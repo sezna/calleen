@@ -12,6 +12,7 @@ use calleen::{Client, Error};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Post {
     #[serde(rename = "userId")]
     user_id: u32,

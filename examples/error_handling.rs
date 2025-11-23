@@ -13,6 +13,7 @@ use calleen::{Client, Error};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Post {
     id: u32,
     title: String,
@@ -53,6 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Example 2: Handling Deserialization Errors ===");
     // Define a struct that doesn't match the API response
     #[derive(Deserialize)]
+    #[allow(dead_code)]
     struct WrongSchema {
         nonexistent_field: String,
     }
@@ -82,14 +84,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let errors = vec![
         Error::HttpError {
             status: http::StatusCode::INTERNAL_SERVER_ERROR,
-            raw_response: "Server error".to_string(),
-            headers: http::HeaderMap::new(),
+            raw_response: "Server error".to_string().into_boxed_str(),
+            headers: Box::new(http::HeaderMap::new()),
             rate_limit_info: None,
         },
         Error::HttpError {
             status: http::StatusCode::BAD_REQUEST,
-            raw_response: "Bad request".to_string(),
-            headers: http::HeaderMap::new(),
+            raw_response: "Bad request".to_string().into_boxed_str(),
+            headers: Box::new(http::HeaderMap::new()),
             rate_limit_info: None,
         },
         Error::Timeout,
