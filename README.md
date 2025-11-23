@@ -1,6 +1,5 @@
 # Calleen
 
-[![CI](https://github.com/USERNAME/calleen/workflows/CI/badge.svg)](https://github.com/USERNAME/calleen/actions)
 [![Crates.io](https://img.shields.io/crates/v/calleen.svg)](https://crates.io/crates/calleen)
 [![Documentation](https://docs.rs/calleen/badge.svg)](https://docs.rs/calleen)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
