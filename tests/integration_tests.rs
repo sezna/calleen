@@ -475,6 +475,7 @@ async fn test_error_is_retryable() {
         status: http::StatusCode::INTERNAL_SERVER_ERROR,
         raw_response: "Error".to_string(),
         headers: http::HeaderMap::new(),
+        rate_limit_info: None,
     };
     assert!(error_5xx.is_retryable());
 
@@ -482,6 +483,7 @@ async fn test_error_is_retryable() {
         status: http::StatusCode::BAD_REQUEST,
         raw_response: "Error".to_string(),
         headers: http::HeaderMap::new(),
+        rate_limit_info: None,
     };
     assert!(!error_4xx.is_retryable());
 
@@ -490,4 +492,192 @@ async fn test_error_is_retryable() {
 
     let error_config = Error::ConfigurationError("Error".to_string());
     assert!(!error_config.is_retryable());
+}
+
+#[tokio::test]
+async fn test_rate_limit_with_retry_after_seconds() {
+    let mock_server = MockServer::start().await;
+
+    let response_data = TestData {
+        id: 1,
+        name: "Test".to_string(),
+    };
+
+    let attempt_count = Arc::new(AtomicUsize::new(0));
+    let attempt_count_clone = attempt_count.clone();
+
+    // First request returns 429 with Retry-After, second succeeds
+    Mock::given(method("GET"))
+        .and(path("/test"))
+        .respond_with(move |_req: &wiremock::Request| {
+            let count = attempt_count_clone.fetch_add(1, Ordering::SeqCst);
+            if count == 0 {
+                ResponseTemplate::new(429)
+                    .insert_header("retry-after", "1")
+                    .insert_header("x-ratelimit-remaining", "0")
+                    .set_body_string("Rate limited")
+            } else {
+                ResponseTemplate::new(200).set_body_json(&response_data)
+            }
+        })
+        .mount(&mock_server)
+        .await;
+
+    let client = Client::builder()
+        .base_url(&mock_server.uri())
+        .unwrap()
+        .retry_strategy(RetryStrategy::Linear {
+            delay: Duration::from_millis(100),
+            max_retries: 3,
+        })
+        .build()
+        .unwrap();
+
+    let start = std::time::Instant::now();
+    let response = client.get::<TestData>("/test").await.unwrap();
+
+    assert_eq!(response.data.id, 1);
+    assert_eq!(response.attempts, 2);
+    // Should have waited approximately 1 second for rate limit
+    assert!(start.elapsed() >= Duration::from_millis(900));
+}
+
+#[tokio::test]
+async fn test_rate_limit_with_x_ratelimit_reset() {
+    let mock_server = MockServer::start().await;
+
+    let response_data = TestData {
+        id: 1,
+        name: "Test".to_string(),
+    };
+
+    let attempt_count = Arc::new(AtomicUsize::new(0));
+    let attempt_count_clone = attempt_count.clone();
+
+    Mock::given(method("GET"))
+        .and(path("/test"))
+        .respond_with(move |_req: &wiremock::Request| {
+            let count = attempt_count_clone.fetch_add(1, Ordering::SeqCst);
+            if count == 0 {
+                let reset_time = std::time::SystemTime::now()
+                    + Duration::from_secs(1);
+                let timestamp = reset_time
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+
+                ResponseTemplate::new(429)
+                    .insert_header("x-ratelimit-reset", timestamp.to_string())
+                    .insert_header("x-ratelimit-remaining", "0")
+                    .set_body_string("Rate limited")
+            } else {
+                ResponseTemplate::new(200).set_body_json(&response_data)
+            }
+        })
+        .mount(&mock_server)
+        .await;
+
+    let client = Client::builder()
+        .base_url(&mock_server.uri())
+        .unwrap()
+        .retry_strategy(RetryStrategy::Linear {
+            delay: Duration::from_millis(100),
+            max_retries: 3,
+        })
+        .build()
+        .unwrap();
+
+    let start = std::time::Instant::now();
+    let response = client.get::<TestData>("/test").await.unwrap();
+
+    assert_eq!(response.data.id, 1);
+    assert_eq!(response.attempts, 2);
+    assert!(start.elapsed() >= Duration::from_millis(900));
+}
+
+#[tokio::test]
+async fn test_rate_limit_disabled() {
+    let mock_server = MockServer::start().await;
+
+    let response_data = TestData {
+        id: 1,
+        name: "Test".to_string(),
+    };
+
+    let attempt_count = Arc::new(AtomicUsize::new(0));
+    let attempt_count_clone = attempt_count.clone();
+
+    Mock::given(method("GET"))
+        .and(path("/test"))
+        .respond_with(move |_req: &wiremock::Request| {
+            let count = attempt_count_clone.fetch_add(1, Ordering::SeqCst);
+            if count == 0 {
+                ResponseTemplate::new(429)
+                    .insert_header("retry-after", "10")
+                    .set_body_string("Rate limited")
+            } else {
+                ResponseTemplate::new(200).set_body_json(&response_data)
+            }
+        })
+        .mount(&mock_server)
+        .await;
+
+    let client = Client::builder()
+        .base_url(&mock_server.uri())
+        .unwrap()
+        .retry_strategy(RetryStrategy::Linear {
+            delay: Duration::from_millis(100),
+            max_retries: 3,
+        })
+        .rate_limit_config(calleen::rate_limit::RateLimitConfig::disabled())
+        .build()
+        .unwrap();
+
+    let start = std::time::Instant::now();
+    let response = client.get::<TestData>("/test").await.unwrap();
+
+    // With rate limiting disabled, should use the normal retry delay (100ms)
+    // instead of the 10 second Retry-After
+    assert!(start.elapsed() < Duration::from_secs(1));
+    assert_eq!(response.attempts, 2);
+}
+
+#[tokio::test]
+async fn test_rate_limit_max_wait_cap() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/test"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .insert_header("retry-after", "600") // 10 minutes
+                .set_body_string("Rate limited"),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let client = Client::builder()
+        .base_url(&mock_server.uri())
+        .unwrap()
+        .retry_strategy(RetryStrategy::Linear {
+            delay: Duration::from_millis(100),
+            max_retries: 1,
+        })
+        .rate_limit_config(
+            calleen::rate_limit::RateLimitConfig::builder()
+                .max_wait(Duration::from_secs(2))
+                .build(),
+        )
+        .build()
+        .unwrap();
+
+    let start = std::time::Instant::now();
+    let result = client.get::<TestData>("/test").await;
+
+    // Should fail after being capped by max_wait (2 seconds)
+    // Total time should be around 2 seconds, not 10 minutes
+    assert!(result.is_err());
+    let elapsed = start.elapsed();
+    assert!(elapsed >= Duration::from_secs(2));
+    assert!(elapsed < Duration::from_secs(4));
 }

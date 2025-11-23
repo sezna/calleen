@@ -5,6 +5,7 @@
 
 use crate::{
     metadata::RequestMetadata,
+    rate_limit::RateLimitConfig,
     retry::{RetryOnRetryable, RetryPredicate, RetryStrategy},
     Error, Response, Result,
 };
@@ -77,6 +78,7 @@ struct ClientInner {
     retry_strategy: RetryStrategy,
     retry_predicate: Box<dyn RetryPredicate>,
     timeout: Option<Duration>,
+    rate_limit_config: RateLimitConfig,
 }
 
 impl Client {
@@ -179,13 +181,34 @@ impl Client {
                         return Err(e);
                     }
 
+                    // Determine retry delay - prefer rate limit info if available
+                    let delay = if self.inner.rate_limit_config.enabled {
+                        if let Some(rate_limit_delay) =
+                            e.rate_limit_delay(self.inner.rate_limit_config.max_wait)
+                        {
+                            tracing::info!(
+                                rate_limit_delay_ms = rate_limit_delay.as_millis(),
+                                attempt = attempt,
+                                max_wait_secs = self.inner.rate_limit_config.max_wait.as_secs(),
+                                "Rate limited - waiting before retry"
+                            );
+                            Some(rate_limit_delay)
+                        } else {
+                            self.inner.retry_strategy.delay_for_attempt(attempt)
+                        }
+                    } else {
+                        self.inner.retry_strategy.delay_for_attempt(attempt)
+                    };
+
                     // Check if we have more retries available
-                    if let Some(delay) = self.inner.retry_strategy.delay_for_attempt(attempt) {
-                        tracing::info!(
-                            delay_ms = delay.as_millis(),
-                            attempt = attempt,
-                            "Retrying request after delay"
-                        );
+                    if let Some(delay) = delay {
+                        if !e.rate_limit_info().is_some() {
+                            tracing::info!(
+                                delay_ms = delay.as_millis(),
+                                attempt = attempt,
+                                "Retrying request after delay"
+                            );
+                        }
 
                         tokio::time::sleep(delay).await;
                         last_error = Some(e);
@@ -282,6 +305,18 @@ impl Client {
         if !status.is_success() {
             let raw_response = response.text().await.unwrap_or_default();
 
+            // Parse rate limit info if enabled
+            let rate_limit_info = if self.inner.rate_limit_config.enabled {
+                let info = crate::rate_limit::RateLimitInfo::from_headers(&headers);
+                if info.is_rate_limited() {
+                    Some(info)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             if status.is_client_error() {
                 tracing::error!(
                     status = status.as_u16(),
@@ -300,6 +335,7 @@ impl Client {
                 status,
                 raw_response,
                 headers,
+                rate_limit_info,
             });
         }
 
@@ -453,6 +489,7 @@ pub struct ClientBuilder {
     retry_strategy: RetryStrategy,
     retry_predicate: Option<Box<dyn RetryPredicate>>,
     timeout: Option<Duration>,
+    rate_limit_config: RateLimitConfig,
 }
 
 impl ClientBuilder {
@@ -464,6 +501,7 @@ impl ClientBuilder {
             retry_strategy: RetryStrategy::None,
             retry_predicate: None,
             timeout: None,
+            rate_limit_config: RateLimitConfig::default(),
         }
     }
 
@@ -511,6 +549,31 @@ impl ClientBuilder {
         self
     }
 
+    /// Sets the rate limit configuration.
+    ///
+    /// By default, rate limit handling is enabled with sensible defaults.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use calleen::{Client, rate_limit::RateLimitConfig};
+    /// use std::time::Duration;
+    ///
+    /// # async fn example() -> Result<(), calleen::Error> {
+    /// let client = Client::builder()
+    ///     .base_url("https://api.example.com")?
+    ///     .rate_limit_config(RateLimitConfig::builder()
+    ///         .max_wait(Duration::from_secs(60))
+    ///         .build())
+    ///     .build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn rate_limit_config(mut self, config: RateLimitConfig) -> Self {
+        self.rate_limit_config = config;
+        self
+    }
+
     /// Builds the configured `Client`.
     ///
     /// # Errors
@@ -538,6 +601,7 @@ impl ClientBuilder {
                 retry_strategy: self.retry_strategy,
                 retry_predicate,
                 timeout: self.timeout,
+                rate_limit_config: self.rate_limit_config,
             }),
         })
     }

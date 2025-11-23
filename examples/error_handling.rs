@@ -36,6 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             status,
             raw_response,
             headers,
+            ..
         }) => {
             println!("HTTP Error!");
             println!("  Status: {}", status);
@@ -83,11 +84,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             status: http::StatusCode::INTERNAL_SERVER_ERROR,
             raw_response: "Server error".to_string(),
             headers: http::HeaderMap::new(),
+            rate_limit_info: None,
         },
         Error::HttpError {
             status: http::StatusCode::BAD_REQUEST,
             raw_response: "Bad request".to_string(),
             headers: http::HeaderMap::new(),
+            rate_limit_info: None,
         },
         Error::Timeout,
         Error::ConfigurationError("Invalid config".to_string()),

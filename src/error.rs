@@ -79,6 +79,7 @@ pub enum Error {
     /// * `status` - The HTTP status code
     /// * `raw_response` - The raw response body
     /// * `headers` - The response headers
+    /// * `rate_limit_info` - Rate limit information if available (especially for 429 responses)
     #[error("HTTP error {status}: {raw_response}")]
     HttpError {
         /// The HTTP status code
@@ -87,6 +88,8 @@ pub enum Error {
         raw_response: String,
         /// The response headers
         headers: HeaderMap,
+        /// Rate limit information parsed from headers
+        rate_limit_info: Option<crate::rate_limit::RateLimitInfo>,
     },
 
     /// Invalid configuration was provided.
@@ -142,6 +145,7 @@ impl Error {
     ///     status: StatusCode::INTERNAL_SERVER_ERROR,
     ///     raw_response: "Server error".to_string(),
     ///     headers: http::HeaderMap::new(),
+    ///     rate_limit_info: None,
     /// };
     ///
     /// assert!(err.is_retryable());
@@ -150,6 +154,7 @@ impl Error {
     ///     status: StatusCode::BAD_REQUEST,
     ///     raw_response: "Bad request".to_string(),
     ///     headers: http::HeaderMap::new(),
+    ///     rate_limit_info: None,
     /// };
     ///
     /// assert!(!err.is_retryable());
@@ -158,7 +163,16 @@ impl Error {
         match self {
             Error::Network(_) => true,
             Error::Timeout => true,
-            Error::HttpError { status, .. } => status.is_server_error(),
+            Error::HttpError {
+                status,
+                rate_limit_info,
+                ..
+            } => {
+                // 5xx errors are always retryable
+                // 429 (Too Many Requests) is retryable when rate limit info is present
+                status.is_server_error()
+                    || (status.as_u16() == 429 && rate_limit_info.is_some())
+            }
             Error::DeserializationFailed { .. } => false,
             Error::ConfigurationError(_) => false,
             Error::MaxRetriesExceeded { .. } => false,
@@ -189,6 +203,29 @@ impl Error {
             Error::DeserializationFailed { raw_response, .. } => Some(raw_response),
             _ => None,
         }
+    }
+
+    /// Returns rate limit information if available.
+    ///
+    /// This is only present for `HttpError` variants that include rate limit headers.
+    pub fn rate_limit_info(&self) -> Option<&crate::rate_limit::RateLimitInfo> {
+        match self {
+            Error::HttpError {
+                rate_limit_info, ..
+            } => rate_limit_info.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Returns the recommended delay from rate limit information.
+    ///
+    /// This is a convenience method that extracts the delay from rate limit info
+    /// and caps it by the provided `max_wait` duration.
+    pub fn rate_limit_delay(
+        &self,
+        max_wait: std::time::Duration,
+    ) -> Option<std::time::Duration> {
+        self.rate_limit_info()?.delay(max_wait)
     }
 }
 

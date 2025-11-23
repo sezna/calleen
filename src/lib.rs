@@ -124,6 +124,7 @@
 mod client;
 mod error;
 pub mod metadata;
+pub mod rate_limit;
 mod response;
 pub mod retry;
 

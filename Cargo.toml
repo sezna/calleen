@@ -16,6 +16,7 @@ tokio = { version = "1.0", features = ["time"] }
 http = "1.0"
 rand = "0.8"
 url = "2.5"
+httpdate = "1.0"
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }

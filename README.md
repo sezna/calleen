@@ -24,6 +24,7 @@ This library addresses these three concerns primarily.
 - **Rich error handling** - Comprehensive error types with access to raw responses and HTTP details
 - **Flexible retry logic** - Exponential backoff, linear, or custom retry strategies
 - **Customizable retry predicates** - Retry on 5xx, timeouts, network errors, or custom conditions
+- **Stateful rate limiting** - Automatic parsing and respect for rate limit headers (Retry-After, X-RateLimit-*)
 - **Automatic logging** - Structured logging with `tracing` for observability
 - **Response metadata** - Access latency, status codes, headers, retry attempts, and raw response bodies
 - **Builder pattern** - Fluent API for configuring clients
@@ -223,6 +224,108 @@ let client = Client::builder()
 - `OrPredicate` - Combine predicates with OR logic
 - `AndPredicate` - Combine predicates with AND logic
 
+## Rate Limiting
+
+Calleen automatically parses and respects rate limit headers from API responses. When enabled (default), rate limit delays take precedence over normal retry delays.
+
+### Automatic Rate Limit Handling
+
+```rust
+use calleen::{Client, RetryStrategy};
+use std::time::Duration;
+
+// Rate limiting is enabled by default
+let client = Client::builder()
+    .base_url("https://api.example.com")?
+    .retry_strategy(RetryStrategy::ExponentialBackoff {
+        initial_delay: Duration::from_millis(100),
+        max_delay: Duration::from_secs(30),
+        max_retries: 5,
+        jitter: true,
+    })
+    .build()?;
+
+// Automatically respects Retry-After and X-RateLimit-* headers
+let response = client.get::<User>("/users/123").await?;
+```
+
+### Supported Headers
+
+Calleen parses the following standard rate limit headers:
+
+- `Retry-After` - Delay in seconds or HTTP date
+- `X-RateLimit-Reset` - Unix timestamp when rate limit resets
+- `X-RateLimit-Remaining` - Number of requests remaining in current window
+
+### Custom Rate Limit Configuration
+
+```rust
+use calleen::rate_limit::RateLimitConfig;
+use std::time::Duration;
+
+let client = Client::builder()
+    .base_url("https://api.example.com")?
+    .rate_limit_config(
+        RateLimitConfig::builder()
+            .enabled(true)
+            .max_wait(Duration::from_secs(120)) // Cap rate limit waits at 2 minutes
+            .respect_retry_after(true)
+            .build(),
+    )
+    .build()?;
+```
+
+### Disabling Rate Limiting
+
+```rust
+use calleen::rate_limit::RateLimitConfig;
+
+let client = Client::builder()
+    .base_url("https://api.example.com")?
+    .rate_limit_config(RateLimitConfig::builder().enabled(false).build())
+    .build()?;
+```
+
+### Accessing Rate Limit Information
+
+```rust
+use calleen::Error;
+
+match client.get::<User>("/users/123").await {
+    Ok(response) => println!("Success: {:?}", response.data),
+    Err(e) => {
+        // Check for rate limit information
+        if let Some(info) = e.rate_limit_info() {
+            println!("Rate limited!");
+            if let Some(retry_after) = info.retry_after {
+                println!("  Retry after: {:?}", retry_after);
+            }
+            if let Some(reset_at) = info.reset_at {
+                println!("  Reset at: {:?}", reset_at);
+            }
+            if let Some(remaining) = info.remaining {
+                println!("  Remaining: {}", remaining);
+            }
+
+            // Get recommended delay with custom max wait
+            if let Some(delay) = e.rate_limit_delay(Duration::from_secs(60)) {
+                println!("  Recommended delay: {:?}", delay);
+            }
+        }
+    }
+}
+```
+
+### Rate Limit Behavior
+
+When a rate limit is encountered (HTTP 429 or rate limit headers present):
+
+1. Rate limit delay from `Retry-After` header is preferred over normal retry strategy
+2. Delay is capped by the configured `max_wait` (default: 5 minutes)
+3. If no rate limit info is available, normal retry strategy applies
+4. Jitter is still added to prevent thundering herd
+5. Rate limit errors are logged with `tracing::warn!` for visibility
+
 ## Response Metadata
 
 Access detailed information about each request:
@@ -317,6 +420,9 @@ cargo run --example error_handling
 
 # Custom retry predicates
 cargo run --example custom_retry
+
+# Rate limiting features
+cargo run --example rate_limiting
 ```
 
 ## Why Calleen?
@@ -326,6 +432,7 @@ cargo run --example custom_retry
 | Feature | Calleen | reqwest |
 |---------|---------|---------|
 | Automatic retries | ✅ | ❌ |
+| Stateful rate limiting | ✅ | ❌ |
 | Rich error types with raw response | ✅ | ❌ |
 | Built-in logging | ✅ | ❌ |
 | Response metadata (latency, attempts) | ✅ | ❌ |
@@ -355,13 +462,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **reqwest** - Low-level HTTP client. Calleen builds on reqwest with retries and error handling.
 - **surf** - Async HTTP client with middleware. Calleen focuses on retry logic and error context.
 - **ureq** - Synchronous HTTP client. Calleen is async-first with tokio.
-
-## Future Roadmap
-
-- [ ] Rate limiting support
-- [ ] Circuit breaker pattern
-- [ ] Request/response middleware chain
-- [ ] Metrics collection hooks
-- [ ] Mock mode for testing
-- [ ] Connection pooling configuration
-- [ ] Support for other serialization formats (XML, protobuf)
