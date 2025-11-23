@@ -163,15 +163,10 @@ impl Error {
         match self {
             Error::Network(_) => true,
             Error::Timeout => true,
-            Error::HttpError {
-                status,
-                rate_limit_info,
-                ..
-            } => {
+            Error::HttpError { status, .. } => {
                 // 5xx errors are always retryable
-                // 429 (Too Many Requests) is retryable when rate limit info is present
-                status.is_server_error()
-                    || (status.as_u16() == 429 && rate_limit_info.is_some())
+                // 429 (Too Many Requests) is also retryable
+                status.is_server_error() || status.as_u16() == 429
             }
             Error::DeserializationFailed { .. } => false,
             Error::ConfigurationError(_) => false,

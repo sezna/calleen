@@ -1,10 +1,11 @@
 [package]
 name = "calleen"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 author = "Alex Hansen <alex@alex-hansen.com>"
 description = "Robust HTTP request library for those who don't like getting unnecessarily paged while on-call."
+repository = "https://github.com/sezna/calleen"
 
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
