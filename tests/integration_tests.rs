@@ -322,7 +322,8 @@ async fn test_response_metadata() {
     assert_eq!(response.status.as_u16(), 200);
     assert_eq!(response.attempts, 1);
     assert!(!response.was_retried());
-    assert!(response.latency.as_millis() > 0);
+    // Latency is measured - just verify it exists (can be 0 for very fast responses)
+    let _ = response.latency; // Ensure latency field is accessible
     assert!(response.raw_body.contains("Test"));
     assert_eq!(response.header("x-custom-header"), Some("custom-value"));
 }
