@@ -100,7 +100,8 @@ impl RetryStrategy {
 
                 // Calculate base delay: initial_delay * 2^(attempt - 1)
                 let multiplier = 2u64.saturating_pow(attempt.saturating_sub(1) as u32);
-                let base_delay = initial_delay.saturating_mul(multiplier.try_into().unwrap_or(u32::MAX));
+                let base_delay =
+                    initial_delay.saturating_mul(multiplier.try_into().unwrap_or(u32::MAX));
                 let delay = base_delay.min(*max_delay);
 
                 if *jitter {
@@ -153,8 +154,6 @@ impl RetryStrategy {
 ///         )
 ///     }
 /// }
-///
-/// # fn main() {}
 /// ```
 pub trait RetryPredicate: Send + Sync {
     /// Determines whether the request should be retried based on the error.
@@ -241,7 +240,9 @@ impl OrPredicate {
 
 impl RetryPredicate for OrPredicate {
     fn should_retry(&self, error: &Error, attempt: usize) -> bool {
-        self.predicates.iter().any(|p| p.should_retry(error, attempt))
+        self.predicates
+            .iter()
+            .any(|p| p.should_retry(error, attempt))
     }
 }
 
@@ -268,8 +269,6 @@ impl RetryPredicate for OrPredicate {
 ///     Box::new(RetryOn5xx),
 ///     Box::new(MaxAttempts(3)),
 /// ]);
-///
-/// # fn main() {}
 /// ```
 pub struct AndPredicate {
     predicates: Vec<Box<dyn RetryPredicate>>,
@@ -284,7 +283,9 @@ impl AndPredicate {
 
 impl RetryPredicate for AndPredicate {
     fn should_retry(&self, error: &Error, attempt: usize) -> bool {
-        self.predicates.iter().all(|p| p.should_retry(error, attempt))
+        self.predicates
+            .iter()
+            .all(|p| p.should_retry(error, attempt))
     }
 }
 
@@ -301,11 +302,26 @@ mod tests {
             jitter: false,
         };
 
-        assert_eq!(strategy.delay_for_attempt(1), Some(Duration::from_millis(100)));
-        assert_eq!(strategy.delay_for_attempt(2), Some(Duration::from_millis(200)));
-        assert_eq!(strategy.delay_for_attempt(3), Some(Duration::from_millis(400)));
-        assert_eq!(strategy.delay_for_attempt(4), Some(Duration::from_millis(800)));
-        assert_eq!(strategy.delay_for_attempt(5), Some(Duration::from_millis(1600)));
+        assert_eq!(
+            strategy.delay_for_attempt(1),
+            Some(Duration::from_millis(100))
+        );
+        assert_eq!(
+            strategy.delay_for_attempt(2),
+            Some(Duration::from_millis(200))
+        );
+        assert_eq!(
+            strategy.delay_for_attempt(3),
+            Some(Duration::from_millis(400))
+        );
+        assert_eq!(
+            strategy.delay_for_attempt(4),
+            Some(Duration::from_millis(800))
+        );
+        assert_eq!(
+            strategy.delay_for_attempt(5),
+            Some(Duration::from_millis(1600))
+        );
         assert_eq!(strategy.delay_for_attempt(6), None);
     }
 

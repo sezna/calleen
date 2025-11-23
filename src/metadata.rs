@@ -45,8 +45,9 @@ impl RequestMetadata {
     ) -> Result<Self, crate::Error> {
         let name = HeaderName::try_from(name.as_ref())
             .map_err(|e| crate::Error::ConfigurationError(format!("Invalid header name: {}", e)))?;
-        let value = HeaderValue::try_from(value.as_ref())
-            .map_err(|e| crate::Error::ConfigurationError(format!("Invalid header value: {}", e)))?;
+        let value = HeaderValue::try_from(value.as_ref()).map_err(|e| {
+            crate::Error::ConfigurationError(format!("Invalid header value: {}", e))
+        })?;
         self.headers.insert(name, value);
         Ok(self)
     }
@@ -58,10 +59,7 @@ impl RequestMetadata {
     }
 
     /// Adds multiple query parameters to the request.
-    pub fn with_query_params(
-        mut self,
-        params: impl IntoIterator<Item = (String, String)>,
-    ) -> Self {
+    pub fn with_query_params(mut self, params: impl IntoIterator<Item = (String, String)>) -> Self {
         self.query_params.extend(params);
         self
     }

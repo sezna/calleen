@@ -66,8 +66,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Deserialization Failed!");
             println!("  Status: {}", status);
             println!("  Serde error: {}", serde_error);
-            println!("  Raw response (first 200 chars): {}",
-                     raw_response.chars().take(200).collect::<String>());
+            println!(
+                "  Raw response (first 200 chars): {}",
+                raw_response.chars().take(200).collect::<String>()
+            );
             println!("\nThis is incredibly useful for debugging API schema mismatches!");
         }
         Err(e) => println!("Other error: {}", e),

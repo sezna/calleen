@@ -25,7 +25,10 @@ async fn main() -> Result<(), Error> {
         .build()?;
 
     // This will fail immediately if the endpoint doesn't exist
-    match client_no_retry.get::<serde_json::Value>("/nonexistent").await {
+    match client_no_retry
+        .get::<serde_json::Value>("/nonexistent")
+        .await
+    {
         Ok(_) => println!("Unexpected success"),
         Err(e) => println!("Failed immediately (no retries): {}", e),
     }
@@ -47,7 +50,10 @@ async fn main() -> Result<(), Error> {
     // Try a failing request to see retry behavior
     // Note: This will retry but still fail after exhausting retries
     let start = std::time::Instant::now();
-    match client_exponential.get::<serde_json::Value>("/posts/999999").await {
+    match client_exponential
+        .get::<serde_json::Value>("/posts/999999")
+        .await
+    {
         Ok(response) => println!("Response: {:?}", response.data),
         Err(e) => {
             println!("Failed after retries: {}", e);

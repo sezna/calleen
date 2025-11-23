@@ -308,7 +308,9 @@ impl Client {
 
         // Try to deserialize
         match serde_json::from_str::<Res>(&raw_body) {
-            Ok(data) => Ok(Response::new(data, raw_body, status, headers, latency, attempts)),
+            Ok(data) => Ok(Response::new(
+                data, raw_body, status, headers, latency, attempts,
+            )),
             Err(e) => {
                 tracing::error!(
                     error = %e,
@@ -379,11 +381,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn post<Req, Res>(
-        &self,
-        path: impl Into<String>,
-        body: &Req,
-    ) -> Result<Response<Res>>
+    pub async fn post<Req, Res>(&self, path: impl Into<String>, body: &Req) -> Result<Response<Res>>
     where
         Req: Serialize,
         Res: DeserializeOwned,
@@ -393,11 +391,7 @@ impl Client {
     }
 
     /// Makes a PUT request to the specified path with a JSON body.
-    pub async fn put<Req, Res>(
-        &self,
-        path: impl Into<String>,
-        body: &Req,
-    ) -> Result<Response<Res>>
+    pub async fn put<Req, Res>(&self, path: impl Into<String>, body: &Req) -> Result<Response<Res>>
     where
         Req: Serialize,
         Res: DeserializeOwned,
@@ -528,9 +522,9 @@ impl ClientBuilder {
             .base_url
             .ok_or_else(|| Error::ConfigurationError("Base URL is required".to_string()))?;
 
-        let http_client = reqwest::Client::builder()
-            .build()
-            .map_err(|e| Error::ConfigurationError(format!("Failed to build HTTP client: {}", e)))?;
+        let http_client = reqwest::Client::builder().build().map_err(|e| {
+            Error::ConfigurationError(format!("Failed to build HTTP client: {}", e))
+        })?;
 
         let retry_predicate = self
             .retry_predicate

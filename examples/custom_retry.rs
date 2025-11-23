@@ -8,9 +8,7 @@
 //!
 //! Run with: `cargo run --example custom_retry`
 
-use calleen::retry::{
-    AndPredicate, OrPredicate, RetryOn5xx, RetryOnTimeout, RetryPredicate,
-};
+use calleen::retry::{AndPredicate, OrPredicate, RetryOn5xx, RetryOnTimeout, RetryPredicate};
 use calleen::{Client, Error, RetryStrategy};
 use std::time::Duration;
 
@@ -43,7 +41,9 @@ struct RetryOnErrorMessage {
 impl RetryPredicate for RetryOnErrorMessage {
     fn should_retry(&self, error: &Error, _attempt: usize) -> bool {
         if let Some(raw_response) = error.raw_response() {
-            self.patterns.iter().any(|pattern| raw_response.contains(pattern))
+            self.patterns
+                .iter()
+                .any(|pattern| raw_response.contains(pattern))
         } else {
             false
         }
@@ -101,10 +101,7 @@ async fn main() -> Result<(), Error> {
 
     println!("=== Example 3: Combining Predicates with AND ===");
     // Retry on 5xx errors AND only for first 2 attempts
-    let and_predicate = AndPredicate::new(vec![
-        Box::new(RetryOn5xx),
-        Box::new(MaxAttempts(2)),
-    ]);
+    let and_predicate = AndPredicate::new(vec![Box::new(RetryOn5xx), Box::new(MaxAttempts(2))]);
 
     let client_and = Client::builder()
         .base_url("https://jsonplaceholder.typicode.com")?

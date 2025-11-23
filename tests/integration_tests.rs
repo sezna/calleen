@@ -438,10 +438,16 @@ async fn test_all_http_methods() {
     let _ = client.get::<TestData>("/test").await.unwrap();
 
     // Test POST
-    let _ = client.post::<TestData, TestData>("/test", &response_data).await.unwrap();
+    let _ = client
+        .post::<TestData, TestData>("/test", &response_data)
+        .await
+        .unwrap();
 
     // Test PUT
-    let _ = client.put::<TestData, TestData>("/test", &response_data).await.unwrap();
+    let _ = client
+        .put::<TestData, TestData>("/test", &response_data)
+        .await
+        .unwrap();
 
     // Test DELETE  (returns empty body, so use serde_json::Value or handle empty response)
     // For empty responses, we can't deserialize, so we expect an error or use a permissive type
@@ -457,7 +463,10 @@ async fn test_all_http_methods() {
     }
 
     // Test PATCH
-    let _ = client.patch::<TestData, TestData>("/test", &response_data).await.unwrap();
+    let _ = client
+        .patch::<TestData, TestData>("/test", &response_data)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
