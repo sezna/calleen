@@ -227,10 +227,7 @@ impl Error {
     ///
     /// This is a convenience method that extracts the delay from rate limit info
     /// and caps it by the provided `max_wait` duration.
-    pub fn rate_limit_delay(
-        &self,
-        max_wait: std::time::Duration,
-    ) -> Option<std::time::Duration> {
+    pub fn rate_limit_delay(&self, max_wait: std::time::Duration) -> Option<std::time::Duration> {
         self.rate_limit_info()?.delay(max_wait)
     }
 }

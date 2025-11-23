@@ -128,7 +128,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("  Should retry after: {:?}", retry_after);
                 }
                 if let Some(reset_at) = info.reset_at {
-                    if let Ok(duration_until_reset) = reset_at.duration_since(std::time::SystemTime::now()) {
+                    if let Ok(duration_until_reset) =
+                        reset_at.duration_since(std::time::SystemTime::now())
+                    {
                         println!("  Reset in: {:?}", duration_until_reset);
                     }
                 }
