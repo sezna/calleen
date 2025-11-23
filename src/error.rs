@@ -77,17 +77,17 @@ pub enum Error {
     /// # Fields
     ///
     /// * `status` - The HTTP status code
-    /// * `raw_response` - The raw response body
-    /// * `headers` - The response headers
+    /// * `raw_response` - The raw response body (boxed to reduce error size)
+    /// * `headers` - The response headers (boxed to reduce error size)
     /// * `rate_limit_info` - Rate limit information if available (especially for 429 responses)
     #[error("HTTP error {status}: {raw_response}")]
     HttpError {
         /// The HTTP status code
         status: StatusCode,
         /// The raw response body
-        raw_response: String,
+        raw_response: Box<str>,
         /// The response headers
-        headers: HeaderMap,
+        headers: Box<HeaderMap>,
         /// Rate limit information parsed from headers
         rate_limit_info: Option<crate::rate_limit::RateLimitInfo>,
     },
@@ -132,8 +132,8 @@ pub enum Error {
 impl Error {
     /// Returns `true` if this error is potentially retryable.
     ///
-    /// Network errors, timeouts, and 5xx HTTP errors are considered retryable.
-    /// 4xx errors and deserialization failures are not.
+    /// Network errors, timeouts, 5xx HTTP errors, and 429 (Too Many Requests) are considered retryable.
+    /// Other 4xx errors and deserialization failures are not.
     ///
     /// # Examples
     ///
@@ -143,17 +143,28 @@ impl Error {
     ///
     /// let err = Error::HttpError {
     ///     status: StatusCode::INTERNAL_SERVER_ERROR,
-    ///     raw_response: "Server error".to_string(),
-    ///     headers: http::HeaderMap::new(),
+    ///     raw_response: "Server error".to_string().into_boxed_str(),
+    ///     headers: Box::new(http::HeaderMap::new()),
     ///     rate_limit_info: None,
     /// };
     ///
     /// assert!(err.is_retryable());
     ///
+    /// // 429 (Too Many Requests) is retryable
+    /// let err = Error::HttpError {
+    ///     status: StatusCode::TOO_MANY_REQUESTS,
+    ///     raw_response: "Rate limited".to_string().into_boxed_str(),
+    ///     headers: Box::new(http::HeaderMap::new()),
+    ///     rate_limit_info: None,
+    /// };
+    ///
+    /// assert!(err.is_retryable());
+    ///
+    /// // Other 4xx errors are not retryable
     /// let err = Error::HttpError {
     ///     status: StatusCode::BAD_REQUEST,
-    ///     raw_response: "Bad request".to_string(),
-    ///     headers: http::HeaderMap::new(),
+    ///     raw_response: "Bad request".to_string().into_boxed_str(),
+    ///     headers: Box::new(http::HeaderMap::new()),
     ///     rate_limit_info: None,
     /// };
     ///
@@ -216,10 +227,7 @@ impl Error {
     ///
     /// This is a convenience method that extracts the delay from rate limit info
     /// and caps it by the provided `max_wait` duration.
-    pub fn rate_limit_delay(
-        &self,
-        max_wait: std::time::Duration,
-    ) -> Option<std::time::Duration> {
+    pub fn rate_limit_delay(&self, max_wait: std::time::Duration) -> Option<std::time::Duration> {
         self.rate_limit_info()?.delay(max_wait)
     }
 }
