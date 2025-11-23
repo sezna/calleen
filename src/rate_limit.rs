@@ -248,6 +248,36 @@ mod tests {
     }
 
     #[test]
+    fn test_rate_limit_info_with_reset_and_remaining() {
+        let mut headers = HeaderMap::new();
+        let now = SystemTime::now();
+        // Use 2 seconds to give more time tolerance
+        let future_time = now + Duration::from_secs(2);
+        let future_timestamp = future_time
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        headers.insert("x-ratelimit-reset", HeaderValue::from_str(&future_timestamp.to_string()).unwrap());
+        headers.insert("x-ratelimit-remaining", HeaderValue::from_static("0"));
+
+        let info = RateLimitInfo::from_headers(&headers);
+        assert!(info.reset_at.is_some());
+        assert_eq!(info.remaining, Some(0));
+        assert!(info.is_rate_limited(), "Should be rate limited when remaining=0");
+
+        let delay = info.delay(Duration::from_secs(300));
+        assert!(delay.is_some(), "Should have a delay");
+        if let Some(d) = delay {
+            // Should be close to 2 seconds
+            // Note: Unix timestamps are in whole seconds, so nanoseconds are truncated,
+            // which can reduce the delay by up to 1 second
+            assert!(d >= Duration::from_secs(1) && d <= Duration::from_secs(3),
+                "Delay should be 1-3 seconds, got {:?}", d);
+        }
+    }
+
+    #[test]
     fn test_parse_rate_limit_reset() {
         let mut headers = HeaderMap::new();
         let future_timestamp = SystemTime::now()

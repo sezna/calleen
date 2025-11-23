@@ -182,22 +182,30 @@ impl Client {
                     }
 
                     // Determine retry delay - prefer rate limit info if available
-                    let delay = if self.inner.rate_limit_config.enabled {
-                        if let Some(rate_limit_delay) =
-                            e.rate_limit_delay(self.inner.rate_limit_config.max_wait)
-                        {
-                            tracing::info!(
-                                rate_limit_delay_ms = rate_limit_delay.as_millis(),
-                                attempt = attempt,
-                                max_wait_secs = self.inner.rate_limit_config.max_wait.as_secs(),
-                                "Rate limited - waiting before retry"
-                            );
-                            Some(rate_limit_delay)
-                        } else {
-                            self.inner.retry_strategy.delay_for_attempt(attempt)
+                    // but still respect max_retries
+                    let delay = match self.inner.retry_strategy.delay_for_attempt(attempt) {
+                        Some(normal_delay) => {
+                            // We have retries remaining - check if rate limit delay should override
+                            if self.inner.rate_limit_config.enabled {
+                                if let Some(rate_limit_delay) =
+                                    e.rate_limit_delay(self.inner.rate_limit_config.max_wait)
+                                {
+                                    tracing::info!(
+                                        rate_limit_delay_ms = rate_limit_delay.as_millis(),
+                                        attempt = attempt,
+                                        max_wait_secs =
+                                            self.inner.rate_limit_config.max_wait.as_secs(),
+                                        "Rate limited - waiting before retry"
+                                    );
+                                    Some(rate_limit_delay)
+                                } else {
+                                    Some(normal_delay)
+                                }
+                            } else {
+                                Some(normal_delay)
+                            }
                         }
-                    } else {
-                        self.inner.retry_strategy.delay_for_attempt(attempt)
+                        None => None, // No retries remaining
                     };
 
                     // Check if we have more retries available

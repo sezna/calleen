@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Example 2: Custom Rate Limit Configuration ===");
     println!("You can customize rate limiting behavior, including maximum wait time.\n");
 
-    let client = Client::builder()
+    let _client = Client::builder()
         .base_url("https://api.github.com")?
         .rate_limit_config(
             RateLimitConfig::builder()
@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Example 3: Disabling Rate Limiting ===");
     println!("You can disable automatic rate limit handling if needed.\n");
 
-    let client = Client::builder()
+    let _client = Client::builder()
         .base_url("https://api.github.com")?
         .rate_limit_config(RateLimitConfig::builder().enabled(false).build())
         .build()?;
@@ -155,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Example 5: Rate Limiting with Retry Strategy ===");
     println!("Rate limit delays take precedence over normal retry delays.\n");
 
-    let client = Client::builder()
+    let _client = Client::builder()
         .base_url("https://httpbin.org")?
         .retry_strategy(RetryStrategy::ExponentialBackoff {
             initial_delay: Duration::from_millis(100),
