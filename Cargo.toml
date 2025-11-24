@@ -1,6 +1,6 @@
 [package]
 name = "calleen"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "MIT"
 authors = ["Alex Hansen <alex@alex-hansen.com>"]
@@ -8,8 +8,8 @@ description = "Robust HTTP request library for those who don't like getting unne
 repository = "https://github.com/sezna/calleen"
 
 [dependencies]
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 thiserror = "2.0"
 tracing = "0.1"
