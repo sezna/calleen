@@ -449,18 +449,8 @@ async fn test_all_http_methods() {
         .await
         .unwrap();
 
-    // Test DELETE  (returns empty body, so use serde_json::Value or handle empty response)
-    // For empty responses, we can't deserialize, so we expect an error or use a permissive type
-    let delete_result = client.delete::<serde_json::Value>("/test").await;
-    // DELETE with 204 returns empty body, which causes deserialization error
-    // This is actually expected behavior - let's just verify we got a 204
-    match delete_result {
-        Err(Error::DeserializationFailed { status, .. }) => {
-            assert_eq!(status.as_u16(), 204);
-        }
-        Ok(_) => panic!("Unexpected success for empty DELETE response"),
-        Err(e) => panic!("Unexpected error: {:?}", e),
-    }
+    // Test DELETE - empty success body is treated as "{}" and succeeds
+    let _ = client.delete::<serde_json::Value>("/test").await.unwrap();
 
     // Test PATCH
     let _ = client

@@ -435,8 +435,15 @@ impl Client {
         // Get raw response text
         let raw_body = response.text().await?;
 
+        // A successful response with an empty body gets replaced with "{}"
+        let parse_target = if raw_body.is_empty() && status.is_success() {
+            "{}"
+        } else {
+            &raw_body
+        };
+
         // Try to deserialize
-        match serde_json::from_str::<Res>(&raw_body) {
+        match serde_json::from_str::<Res>(parse_target) {
             Ok(data) => Ok(Response::new(
                 data, raw_body, status, headers, latency, attempts,
             )),
